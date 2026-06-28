@@ -580,10 +580,19 @@ func (s *SubService) genVmessLink(inbound *model.Inbound, email string) string {
 		return ""
 	}
 	address := s.resolveInboundAddress(inbound)
+	port := inbound.Port
+	if strings.Contains(address, ":") {
+		if host, portStr, err := net.SplitHostPort(address); err == nil {
+			address = host
+			if p, err := strconv.Atoi(portStr); err == nil {
+				port = p
+			}
+		}
+	}
 	obj := map[string]any{
 		"v":    "2",
 		"add":  address,
-		"port": inbound.Port,
+		"port": port,
 		"type": "none",
 	}
 	stream := unmarshalStreamSettings(inbound.StreamSettings)
@@ -654,6 +663,14 @@ func (s *SubService) genVlessLink(inbound *model.Inbound, email string) string {
 	clientIndex := findClientIndex(clients, email)
 	uuid := clients[clientIndex].ID
 	port := inbound.Port
+	if strings.Contains(address, ":") {
+		if host, portStr, err := net.SplitHostPort(address); err == nil {
+			address = host
+			if p, err := strconv.Atoi(portStr); err == nil {
+				port = p
+			}
+		}
+	}
 	streamNetwork := stream["network"].(string)
 	params := make(map[string]string)
 	params["type"] = streamNetwork

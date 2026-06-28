@@ -122,6 +122,11 @@ function isValidShareAddrInput(value: string): boolean {
   }
   if (v.includes(':')) {
     try {
+      new URL(`http://${v}`);
+      return true;
+    } catch {
+    }
+    try {
       new URL(`http://[${v}]`);
       return true;
     } catch {

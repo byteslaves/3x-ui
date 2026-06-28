@@ -670,7 +670,7 @@
         "shareAddrStrategy": "Share address strategy",
         "shareAddrStrategyHelp": "Controls which address is written into exported share links, QR codes, and subscription output.",
         "shareAddr": "Custom share address",
-        "shareAddrHelp": "Used only when the share address strategy is Custom. Enter a host or IP without a scheme or port.",
+        "shareAddrHelp": "Used only when the share address strategy is Custom. Enter a host or IP without a scheme or port. (For vless/vmess+cdn+Nginx, ports can be added such as: example.com:443)",
         "subSortIndex": "Subscription sort order",
         "subSortIndexHelp": "Position of this inbound's links in subscription output (sub page and client apps). Lower values come first; equal values keep creation order. Does not affect the panel inbound list.",
         "shareAddrStrategyOptions": {
