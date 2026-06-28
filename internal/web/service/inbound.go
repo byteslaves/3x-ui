@@ -73,6 +73,14 @@ func normalizeInboundShareHost(raw string) (string, error) {
 	if strings.Contains(addr, "://") || strings.HasPrefix(addr, "//") || strings.ContainsAny(addr, "/?#@") {
 		return "", fmt.Errorf("invalid share address %q", raw)
 	}
+
+	if host, port, err := net.SplitHostPort(addr); err == nil {
+		if strings.ContainsAny(host, "/?#@") || port == "" {
+			return "", fmt.Errorf("invalid share address %q", raw)
+		}
+		return addr, nil
+	}
+
 	if strings.HasPrefix(addr, "[") {
 		if !strings.HasSuffix(addr, "]") {
 			return "", fmt.Errorf("invalid IPv6 host %q", raw)
@@ -84,9 +92,6 @@ func normalizeInboundShareHost(raw string) (string, error) {
 		return "[" + ip.String() + "]", nil
 	}
 	if strings.Contains(addr, ":") {
-		if _, _, err := net.SplitHostPort(addr); err == nil {
-			return "", fmt.Errorf("share address must not include port")
-		}
 		ip := net.ParseIP(addr)
 		if ip == nil || ip.To4() != nil {
 			return "", fmt.Errorf("invalid IPv6 host %q", raw)
