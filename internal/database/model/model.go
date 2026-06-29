@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/util/json_util"
@@ -299,6 +301,9 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	if stripped, ok := StripInboundXhttpClientFields(streamSettings); ok {
 		streamSettings = stripped
 	}
+	if healed, ok := HandleTLSOffload(streamSettings, i.Port); ok {
+		streamSettings = healed
+	}
 	return &xray.InboundConfig{
 		Listen:         json_util.RawMessage(listen),
 		Port:           i.Port,
@@ -308,6 +313,46 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 		Tag:            i.Tag,
 		Sniffing:       json_util.RawMessage(i.Sniffing),
 	}
+}
+
+func HandleTLSOffload(streamSettings string, localPort int) (string, bool) {
+	if streamSettings == "" {
+		return streamSettings, false
+	}
+	var stream map[string]any
+	if err := json.Unmarshal([]byte(streamSettings), &stream); err != nil {
+		return streamSettings, false
+	}
+
+	changed := false
+	if security, ok := stream["security"].(string); ok && security == "tls" {
+		if extProxy, ok := stream["externalProxy"].(string); ok && extProxy != "" {
+			if _, portStr, err := net.SplitHostPort(extProxy); err == nil {
+				if extPort, err := strconv.Atoi(portStr); err == nil {
+					if extPort != localPort {
+						stream["security"] = "none"
+						delete(stream, "tlsSettings")
+						changed = true
+					}
+				}
+			}
+		}
+	}
+
+	if _, has := stream["externalProxy"]; has {
+		delete(stream, "externalProxy")
+		changed = true
+	}
+
+	if !changed {
+		return streamSettings, false
+	}
+
+	out, err := json.MarshalIndent(stream, "", "  ")
+	if err != nil {
+		return streamSettings, false
+	}
+	return string(out), true
 }
 
 func StripVmessClientSecurity(settings string) (string, bool) {

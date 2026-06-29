@@ -270,3 +270,82 @@ func TestGenXrayInboundConfig_OmitsInboundXmuxButDbRowUnchanged(t *testing.T) {
 		t.Fatal("inbound row streamSettings must still carry xmux for subscriptions")
 	}
 }
+
+func TestGenXrayInboundConfig_TLSOffload(t *testing.T) {
+	cases := []struct {
+		name             string
+		port             int
+		streamSettings   string
+		expectedSecurity string
+		expectTlsSetting bool
+	}{
+		{
+			name: "TLS Offloaded (Ports Differ)",
+			port: 60001,
+			streamSettings: `{
+				"security": "tls",
+				"externalProxy": "shop.th.top:443",
+				"tlsSettings": {
+					"serverName": "shop.th.top"
+				}
+			}`,
+			expectedSecurity: "none",
+			expectTlsSetting: false,
+		},
+		{
+			name: "TLS Not Offloaded (Ports Match)",
+			port: 443,
+			streamSettings: `{
+				"security": "tls",
+				"externalProxy": "shop.th.top:443",
+				"tlsSettings": {
+					"serverName": "shop.th.top"
+				}
+			}`,
+			expectedSecurity: "tls",
+			expectTlsSetting: true,
+		},
+		{
+			name: "Security None With External Proxy",
+			port: 60001,
+			streamSettings: `{
+				"security": "none",
+				"externalProxy": "shop.th.top:80"
+			}`,
+			expectedSecurity: "none",
+			expectTlsSetting: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := Inbound{
+				Protocol:       VLESS,
+				Port:           tc.port,
+				Listen:         "0.0.0.0",
+				Tag:            "test-inbound",
+				Settings:       `{"clients":[],"decryption":"none"}`,
+				StreamSettings: tc.streamSettings,
+			}
+			cfg := in.GenXrayInboundConfig()
+
+			var stream map[string]any
+			if err := json.Unmarshal([]byte(cfg.StreamSettings), &stream); err != nil {
+				t.Fatalf("failed to unmarshal output stream settings: %v", err)
+			}
+
+			if stream["security"] != tc.expectedSecurity {
+				t.Errorf("expected security %q, got %q", tc.expectedSecurity, stream["security"])
+			}
+
+			_, hasTls := stream["tlsSettings"]
+			if hasTls != tc.expectTlsSetting {
+				t.Errorf("expected tlsSettings presence %v, got %v", tc.expectTlsSetting, hasTls)
+			}
+
+			if _, hasExt := stream["externalProxy"]; hasExt {
+				t.Errorf("externalProxy should always be stripped from the final config")
+			}
+		})
+	}
+}

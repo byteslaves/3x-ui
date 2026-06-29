@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -277,6 +279,20 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 					delete(tlsSettings, "settings")
 				} else if ok2 {
 					delete(realitySettings, "settings")
+				}
+			}
+
+			// Apply TLS offload logic: check if externalProxy port != localPort
+			if security, ok := stream["security"].(string); ok && security == "tls" {
+				if extProxy, ok := stream["externalProxy"].(string); ok && extProxy != "" {
+					if _, portStr, err := net.SplitHostPort(extProxy); err == nil {
+						if extPort, err := strconv.Atoi(portStr); err == nil {
+							if extPort != inbound.Port {
+								stream["security"] = "none"
+								delete(stream, "tlsSettings")
+							}
+						}
+					}
 				}
 			}
 
