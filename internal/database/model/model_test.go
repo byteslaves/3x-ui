@@ -275,12 +275,13 @@ func TestGenXrayInboundConfig_TLSOffload(t *testing.T) {
 	cases := []struct {
 		name             string
 		port             int
+		shareAddr        string
 		streamSettings   string
 		expectedSecurity string
 		expectTlsSetting bool
 	}{
 		{
-			name: "TLS Offloaded (Ports Differ)",
+			name: "TLS Offloaded via externalProxy (Ports Differ)",
 			port: 60001,
 			streamSettings: `{
 				"security": "tls",
@@ -293,11 +294,50 @@ func TestGenXrayInboundConfig_TLSOffload(t *testing.T) {
 			expectTlsSetting: false,
 		},
 		{
-			name: "TLS Not Offloaded (Ports Match)",
+			name: "TLS Offloaded via shareAddr (Ports Differ)",
+			port: 60001,
+			shareAddr: "shop.th.top:443",
+			streamSettings: `{
+				"security": "tls",
+				"tlsSettings": {
+					"serverName": "shop.th.top"
+				}
+			}`,
+			expectedSecurity: "none",
+			expectTlsSetting: false,
+		},
+		{
+			name: "TLS Not Offloaded via externalProxy (Ports Match)",
 			port: 443,
 			streamSettings: `{
 				"security": "tls",
 				"externalProxy": "shop.th.top:443",
+				"tlsSettings": {
+					"serverName": "shop.th.top"
+				}
+			}`,
+			expectedSecurity: "tls",
+			expectTlsSetting: true,
+		},
+		{
+			name: "TLS Not Offloaded via shareAddr (Ports Match)",
+			port: 443,
+			shareAddr: "shop.th.top:443",
+			streamSettings: `{
+				"security": "tls",
+				"tlsSettings": {
+					"serverName": "shop.th.top"
+				}
+			}`,
+			expectedSecurity: "tls",
+			expectTlsSetting: true,
+		},
+		{
+			name: "TLS Not Offloaded (shareAddr has no port)",
+			port: 60001,
+			shareAddr: "shop.th.top",
+			streamSettings: `{
+				"security": "tls",
 				"tlsSettings": {
 					"serverName": "shop.th.top"
 				}
@@ -322,6 +362,7 @@ func TestGenXrayInboundConfig_TLSOffload(t *testing.T) {
 			in := Inbound{
 				Protocol:       VLESS,
 				Port:           tc.port,
+				ShareAddr:      tc.shareAddr,
 				Listen:         "0.0.0.0",
 				Tag:            "test-inbound",
 				Settings:       `{"clients":[],"decryption":"none"}`,

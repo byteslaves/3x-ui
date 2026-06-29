@@ -301,7 +301,7 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	if stripped, ok := StripInboundXhttpClientFields(streamSettings); ok {
 		streamSettings = stripped
 	}
-	if healed, ok := HandleTLSOffload(streamSettings, i.Port); ok {
+	if healed, ok := HandleTLSOffload(streamSettings, i.Port, i.ShareAddr); ok {
 		streamSettings = healed
 	}
 	return &xray.InboundConfig{
@@ -315,7 +315,7 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	}
 }
 
-func HandleTLSOffload(streamSettings string, localPort int) (string, bool) {
+func HandleTLSOffload(streamSettings string, localPort int, shareAddr string) (string, bool) {
 	if streamSettings == "" {
 		return streamSettings, false
 	}
@@ -324,18 +324,36 @@ func HandleTLSOffload(streamSettings string, localPort int) (string, bool) {
 		return streamSettings, false
 	}
 
+	getPortFromString := func(s string) (int, bool) {
+		if s == "" {
+			return 0, false
+		}
+		if _, portStr, err := net.SplitHostPort(s); err == nil {
+			if port, err := strconv.Atoi(portStr); err == nil {
+				return port, true
+			}
+		}
+		return 0, false
+	}
+
 	changed := false
 	if security, ok := stream["security"].(string); ok && security == "tls" {
-		if extProxy, ok := stream["externalProxy"].(string); ok && extProxy != "" {
-			if _, portStr, err := net.SplitHostPort(extProxy); err == nil {
-				if extPort, err := strconv.Atoi(portStr); err == nil {
-					if extPort != localPort {
-						stream["security"] = "none"
-						delete(stream, "tlsSettings")
-						changed = true
-					}
+		offloaded := false
+		if extPort, ok := getPortFromString(shareAddr); ok && extPort != localPort {
+			offloaded = true
+		}
+		if !offloaded {
+			if extProxy, ok := stream["externalProxy"].(string); ok {
+				if extPort, ok := getPortFromString(extProxy); ok && extPort != localPort {
+					offloaded = true
 				}
 			}
+		}
+
+		if offloaded {
+			stream["security"] = "none"
+			delete(stream, "tlsSettings")
+			changed = true
 		}
 	}
 

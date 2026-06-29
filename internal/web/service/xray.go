@@ -282,17 +282,35 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 				}
 			}
 
-			// Apply TLS offload logic: check if externalProxy port != localPort
+			// Apply TLS offload logic: check if externalProxy port != localPort or shareAddr port != localPort
 			if security, ok := stream["security"].(string); ok && security == "tls" {
-				if extProxy, ok := stream["externalProxy"].(string); ok && extProxy != "" {
-					if _, portStr, err := net.SplitHostPort(extProxy); err == nil {
-						if extPort, err := strconv.Atoi(portStr); err == nil {
-							if extPort != inbound.Port {
-								stream["security"] = "none"
-								delete(stream, "tlsSettings")
-							}
+				getPortFromString := func(s string) (int, bool) {
+					if s == "" {
+						return 0, false
+					}
+					if _, portStr, err := net.SplitHostPort(s); err == nil {
+						if port, err := strconv.Atoi(portStr); err == nil {
+							return port, true
 						}
 					}
+					return 0, false
+				}
+
+				offloaded := false
+				if extPort, ok := getPortFromString(inbound.ShareAddr); ok && extPort != inbound.Port {
+					offloaded = true
+				}
+				if !offloaded {
+					if extProxy, ok := stream["externalProxy"].(string); ok {
+						if extPort, ok := getPortFromString(extProxy); ok && extPort != inbound.Port {
+							offloaded = true
+						}
+					}
+				}
+
+				if offloaded {
+					stream["security"] = "none"
+					delete(stream, "tlsSettings")
 				}
 			}
 
